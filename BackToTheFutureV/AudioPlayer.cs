@@ -58,7 +58,7 @@ namespace BackToTheFutureV
             }
         }
 
-        public static void PlaySoundFromName(string name, out AudioPlayer player, bool loop = false)
+        public static void PlaySoundFromName(string name, out AudioPlayer player, bool loop = false, int volume = 1)
         {
             if(cache.TryGetValue(name, out player))
             {
@@ -75,7 +75,7 @@ namespace BackToTheFutureV
                 var fileName = Path.GetFileNameWithoutExtension(file);
                 if(extension == ".wav" && fileName == name)
                 {
-                    var audioPlayer = new AudioPlayer(file, loop);
+                    var audioPlayer = new AudioPlayer(file, loop, volume);
                     audioPlayer.Play();
 
                     cache.Add(name, audioPlayer);

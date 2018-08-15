@@ -30,12 +30,27 @@ namespace BackToTheFutureV.Entities
             }
         }
 
-        public Delorean(Vector3 position)
+        public Delorean(Vector3 position, float heading = 0)
         {
-            Vehicle = World.CreateVehicle(VehicleHash.Adder, position);
+            Vehicle = World.CreateVehicle(new Model("bttf2"), position, heading);
             Vehicle.IsInvincible = true;
-            Circuits = new TimeCircuits(this);
+            Vehicle.IsRadioEnabled = false;
 
+            Vehicle.InstallModKit();
+
+            Vehicle.SetMod(VehicleMod.RearBumper, 2, true);
+            Vehicle.ToggleMod(VehicleToggleMod.Turbo, true);
+            Vehicle.SetMod(VehicleMod.Frame, -1, true);
+            Vehicle.SetMod(VehicleMod.Horns, 16, true);
+            Vehicle.SetMod(VehicleMod.RearBumper, 0, true);
+            Vehicle.SetMod(VehicleMod.RightFender, 0, true);
+            Vehicle.SetMod(VehicleMod.Fender, 0, true);
+            Vehicle.SetMod(VehicleMod.ArchCover, 0, true);
+            Vehicle.SetMod(VehicleMod.Exhaust, 0, true);
+            Vehicle.SetMod(VehicleMod.Hood, 0, true);
+            Vehicle.SetMod(VehicleMod.Ornaments, 0, true);
+
+            Circuits = new TimeCircuits(this);
         }
 
         public void Tick()
@@ -51,7 +66,19 @@ namespace BackToTheFutureV.Entities
 
     public class TimeCircuits
     {
-        public bool IsOn { get; set; }
+        public bool IsOn
+        {
+            get => isOn;
+            set
+            {
+                isOn = value;
+
+                if(isOn)
+                    AudioPlayer.PlaySoundFromName("input_on", out AudioPlayer player, false, 2);
+                else
+                    AudioPlayer.PlaySoundFromName("input_off", out AudioPlayer player, false, 2);
+            }
+        }
 
         public DateTime DestinationTime { get; set; }
         public DateTime PreviousTime { get; set; }
@@ -59,33 +86,61 @@ namespace BackToTheFutureV.Entities
         public int MPHSpeed { get => delorean.MPHSpeed; set => delorean.MPHSpeed = value; } 
         public Vehicle Vehicle => delorean.Vehicle;
 
-        public bool HasTimeTravelled;
-        public bool IsTimeTravelling;
+        public TimeTravelHandler TimeTravelHandler;
+        public SparksHandler SparksHandler;
+
+        private bool isOn;
 
         private string destinationTimeRaw;
         private DateTime nextReset;
-
         private Delorean delorean;
-        private TimeTravelHandler timeTravelHandler;
-        private AudioPlayer sparksAudio;
+
+
+        private UIText destinationTimeText;
+        private UIText currentTimeText;
+        private UIText previousTimeText;
+
 
         public TimeCircuits(Delorean del)
         {
             delorean = del;
-            sparksAudio = new AudioPlayer("./scripts/BackToTheFutureV/sounds/sparks.wav", true, 2);
+            
+            destinationTimeText = new UIText("Oct 21 1994 22:22 PM", new Point(1050, 360), 0.7f, Color.OrangeRed, GTA.Font.HouseScript, false);
+            currentTimeText = new UIText("Oct 21 1991 22:11 PM", new Point(1050, 384), 0.7f, Color.OrangeRed, GTA.Font.HouseScript, false);
+            previousTimeText = new UIText("Oct 21 1991 22:11 PM", new Point(1050, 408), 0.7f, Color.OrangeRed, GTA.Font.HouseScript, false);
+
+            TimeTravelHandler = new TimeTravelHandler(this);
+            SparksHandler = new SparksHandler(this);
+        }
+
+        private void ResetEverything()
+        {
+            SparksHandler?.ForceStop();
+        }
+
+        private void Draw()
+        {
+            destinationTimeText.Caption = DestinationTime.ToString("MMM dd yyyy h:mm tt");
+            currentTimeText.Caption = Utils.GetWorldTime().ToString("MMM dd yyyy h:mm tt");
+            previousTimeText.Caption = PreviousTime.ToString("MMM dd yyyy h:mm tt");
+
+            destinationTimeText.Draw();
+            currentTimeText.Draw();
+            previousTimeText.Draw();
         }
 
         public void Tick()
         {
-            UI.ShowSubtitle(MPHSpeed.ToString());
-
-            if(timeTravelHandler != null)
+            if (!IsOn)
             {
-                timeTravelHandler.Process();
-
-                if (timeTravelHandler.hasEnded)
-                    timeTravelHandler = null;
+                ResetEverything();
+                return;
             }
+
+            SparksHandler?.Process();
+            TimeTravelHandler?.Process();
+
+            Draw();
 
             if (DateTime.UtcNow > nextReset)
             {
@@ -97,51 +152,28 @@ namespace BackToTheFutureV.Entities
                 var dateTime = Utils.ParseFromRawString(destinationTimeRaw);
 
                 if(dateTime == DateTime.MinValue)
-                {
-                    AudioPlayer.PlaySoundFromName("input error", out AudioPlayer player);
-                }
+                    AudioPlayer.PlaySoundFromName("input enter error", out AudioPlayer player);
                 else
-                {
                     AudioPlayer.PlaySoundFromName("input enter", out AudioPlayer player);
-                }
 
                 DestinationTime = dateTime;
 
                 destinationTimeRaw = "";
             }
 
-            if (MPHSpeed < 80)
-            {
-                sparksAudio.Stop();
-            }
-
-            if (MPHSpeed >= 80 && MPHSpeed < 88)
-            {
-                if (!sparksAudio.IsPlaying)
-                {
-                    sparksAudio.Play();
-                }
-
-                // TODO: Play FX here
-            }
-
-            if (MPHSpeed >= 88)
-            {
-                sparksAudio.Stop();
-            
-                if(timeTravelHandler == null)
-                {
-                    timeTravelHandler = new TimeTravelHandler(this);
-                }
-            }
-
-            UI.ShowSubtitle("this is a test", 1);
         }
 
         public void KeyDown(KeyEventArgs e)
         {
             // Only want to do this if we're currently in the vehicle
             if (Game.Player.Character.CurrentVehicle != Vehicle) return;
+
+            if(e.KeyCode == Keys.Enter)
+            {
+                IsOn = !IsOn;
+            }
+
+            if (!IsOn) return;
 
             string keyCode = e.KeyCode.ToString();
 

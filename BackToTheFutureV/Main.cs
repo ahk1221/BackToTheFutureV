@@ -8,6 +8,7 @@ using GTA;
 using GTA.Math;
 using GTA.Native;
 using BackToTheFutureV.Entities;
+using BackToTheFutureV.Memory;
 
 namespace BackToTheFutureV
 {
@@ -15,10 +16,18 @@ namespace BackToTheFutureV
     {
         public Delorean delorean;
 
+        public PtfxEntityPlayer ptfx;
+
         public Main()
         {
             Tick += Main_Tick;
             KeyDown += Main_KeyDown;
+            Aborted += Main_Aborted;
+        }
+
+        private void Main_Aborted(object sender, EventArgs e)
+        {
+            delorean?.Vehicle?.Delete();
         }
 
         private void Main_KeyDown(object sender, KeyEventArgs e)
@@ -27,21 +36,31 @@ namespace BackToTheFutureV
 
             if(e.KeyCode == Keys.L)
             {
-                delorean = new Delorean(Game.Player.Character.Position);
+                delorean = new Delorean(Game.Player.Character.Position, Game.Player.Character.Heading);
                 Game.Player.Character.Task.WarpIntoVehicle(delorean.Vehicle, VehicleSeat.Driver);
+            }
+
+            if(e.KeyCode == Keys.H)
+            {
+                UI.ShowSubtitle(World.CurrentDate.ToString());
             }
 
             if(e.KeyCode == Keys.J)
             {
-                Function.Call(Hash.REQUEST_NAMED_PTFX_ASSET, "scr_mp_house");
-                Function.Call(Hash._SET_PTFX_ASSET_NEXT_CALL, "scr_mp_house");
-                Function.Call<int>(Hash.START_PARTICLE_FX_LOOPED_AT_COORD, "scr_sh_lighter_sparks", GTA.Game.Player.Character.Position.X, GTA.Game.Player.Character.Position.Y, GTA.Game.Player.Character.Position.Z + 2f, 0, 0, 0, 3f, 0, 0, 0);
+                if (Game.Player.Character.CurrentVehicle == null) return;
+
+                if (ptfx == null)
+                    ptfx = new PtfxEntityPlayer("core", "ent_amb_barrel_fire", Game.Player.Character.CurrentVehicle, new Vector3(-0.7742f, 1.306987f, -0.255118f), Vector3.Zero, 1f, true, false);
+
+                ptfx.Play();
             }
         }
 
         private void Main_Tick(object sender, EventArgs e)
         {
             delorean?.Tick();
+
+            ptfx?.Process();
         }
     }
 }
