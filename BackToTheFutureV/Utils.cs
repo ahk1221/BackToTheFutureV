@@ -195,6 +195,13 @@ namespace BackToTheFutureV
             Function.Call(Hash.SET_CLOCK_DATE, time.Day, time.Month, time.Year);
             Function.Call(Hash.SET_CLOCK_TIME, time.Hour, time.Minute, time.Second);
         }
+
+        public static void DisplayHelpText(string text)
+        {
+            Function.Call(Hash._SET_TEXT_COMPONENT_FORMAT, "STRING");
+            Function.Call(Hash._ADD_TEXT_COMPONENT_STRING, text);
+            Function.Call(Hash._0x238FFE5C7B0498A6, 0, 0, 1, -1);
+        }
     }
 
     public static class DrawingUtils

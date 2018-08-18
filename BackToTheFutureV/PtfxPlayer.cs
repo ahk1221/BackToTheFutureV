@@ -111,7 +111,7 @@ namespace BackToTheFutureV
     {
         public Entity Entity { get; }
 
-        public PtfxEntityPlayer(string assetName, string effectName, Entity entity, Vector3 posOffset, Vector3 rot, float size = 1f, bool loop = false, bool doLoopHandling = false, int removeTime = 30) : base(assetName, effectName, posOffset, Vector3.Zero, size, loop, doLoopHandling, removeTime)
+        public PtfxEntityPlayer(string assetName, string effectName, Entity entity, Vector3 posOffset, Vector3 rot, float size = 1f, bool loop = false, bool doLoopHandling = false, int removeTime = 30) : base(assetName, effectName, posOffset, rot, size, loop, doLoopHandling, removeTime)
         {
             Entity = entity;
         }

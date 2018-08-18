@@ -7,14 +7,19 @@ using GTA;
 using GTA.Native;
 using GTA.Math;
 
-namespace BackToTheFutureV
+namespace BackToTheFutureV.Handlers
 {
-    public class TimeTravelHandler
+    public enum TimeTravelMode
     {
+        CutScene, Instant 
+    }
+
+    public class TimeTravelHandler : Handler
+    {
+        public TimeTravelMode CurrentMode { get; set; }
+
         private AudioPlayer timeTravelAudio;
         private AudioPlayer reentryAudio;
-
-        public TimeCircuits timeCircuits;
 
         private bool isTimeTravelling = false;
         private int currentStep;
@@ -22,12 +27,10 @@ namespace BackToTheFutureV
 
         private List<Moment> momentsInTime = new List<Moment>();
 
-        public TimeTravelHandler(TimeCircuits circuits)
+        public TimeTravelHandler(TimeCircuits circuits) : base(circuits)
         {
             timeTravelAudio = new AudioPlayer("./scripts/BackToTheFutureV/sounds/time_travel.wav", false, 2);
             reentryAudio = new AudioPlayer("./scripts/BackToTheFutureV/sounds/reentry.wav", false, 2);
-
-            timeCircuits = circuits;
         }
 
         public void StartTimeTravelling()
@@ -36,7 +39,17 @@ namespace BackToTheFutureV
             gameTimer = 0;
         }
 
-        public void Process()
+        public void ToggleModes()
+        {
+            int newMode = (int)CurrentMode + 1;
+
+            if (newMode > 1)
+                newMode = 0;
+
+            CurrentMode = (TimeTravelMode)newMode;
+        }
+
+        public override void Process()
         {
             if (!isTimeTravelling) return;
             if (Game.GameTime < gameTimer) return;
@@ -44,20 +57,31 @@ namespace BackToTheFutureV
             switch(currentStep)
             {
                 case 0:
-                    gameTimer = Game.GameTime + 2000;
-
                     timeTravelAudio.Play();
 
-                    timeCircuits.Vehicle.IsVisible = false;
-                    timeCircuits.Vehicle.HasCollision = false;
-                    timeCircuits.Vehicle.FreezePosition = true;
+                    if (CurrentMode != TimeTravelMode.CutScene)
+                    {
+                        // Have to call SetupJump manually here.
+                        SetupJump();
+
+                        // Jump to the end
+                        currentStep = 7;
+                        break;
+                    }
+
+                    gameTimer = Game.GameTime + 2000;
+
+                    Vehicle.IsVisible = false;
+                    Vehicle.HasCollision = false;
+                    Vehicle.FreezePosition = true;
+                    Vehicle.EngineRunning = false;
                     Game.Player.Character.IsVisible = false;
 
                     currentStep++;
                     break;
 
                 case 1:
-                    //Game.FadeScreenOut(1000);
+                    Game.FadeScreenOut(1000);
                     gameTimer = Game.GameTime + 1500;
 
                     currentStep++;
@@ -71,7 +95,7 @@ namespace BackToTheFutureV
                     break;
 
                 case 3:
-                    //Game.FadeScreenIn(1000);
+                    Game.FadeScreenIn(1000);
                     gameTimer = Game.GameTime + 700;
 
                     currentStep++;
@@ -81,14 +105,14 @@ namespace BackToTheFutureV
                     reentryAudio.Play();
                     gameTimer = Game.GameTime + 500;
 
-                    World.AddExplosion(timeCircuits.Vehicle.Position, ExplosionType.Rocket, 1f, 0, false, false);
+                    World.AddExplosion(Vehicle.Position, ExplosionType.Rocket, 1f, 0, false, false);
 
                     currentStep++;
                     break;
 
                 case 5:
 
-                    World.AddExplosion(timeCircuits.Vehicle.Position, ExplosionType.Rocket, 1f, 0, false, false);
+                    World.AddExplosion(Vehicle.Position, ExplosionType.Rocket, 1f, 0, false, false);
 
                     gameTimer = Game.GameTime + 500;
 
@@ -96,14 +120,20 @@ namespace BackToTheFutureV
                     break;
 
                 case 6:
-                    World.AddExplosion(timeCircuits.Vehicle.Position, ExplosionType.Rocket, 1f, 0, false, false);
 
-                    timeCircuits.Vehicle.IsVisible = true;
-                    timeCircuits.Vehicle.HasCollision = true;
-                    timeCircuits.Vehicle.FreezePosition = false;
+                    World.AddExplosion(Vehicle.Position, ExplosionType.Rocket, 1f, 0, false, false);
+
+                    currentStep++;
+                    break;
+
+                case 7:
+                    Vehicle.IsVisible = true;
+                    Vehicle.HasCollision = true;
+                    Vehicle.FreezePosition = false;
+                    Vehicle.EngineRunning = true;
                     Game.Player.Character.IsVisible = true;
 
-                    timeCircuits.MPHSpeed = 65;
+                    MPHSpeed = 65f;
 
                     currentStep = 0;
                     isTimeTravelling = false;
@@ -112,16 +142,29 @@ namespace BackToTheFutureV
             }
         }
 
+        public override void Stop()
+        {
+            currentStep = 0;
+            isTimeTravelling = false;
+            gameTimer = 0;
+
+            Vehicle.IsVisible = true;
+            Vehicle.HasCollision = true;
+            Vehicle.FreezePosition = false;
+            Vehicle.EngineRunning = true;
+            Game.Player.Character.IsVisible = true;
+        }
+
         private void SetupJump()
         {
             // Update the previous time.
-            timeCircuits.PreviousTime = Utils.GetWorldTime();
+            PreviousTime = Utils.GetWorldTime();
 
             // Set the new GTA time.
-            Utils.SetWorldTime(timeCircuits.DestinationTime);
+            Utils.SetWorldTime(DestinationTime);
 
             // Try to find a stored moment for our time jump
-            var moment = GetStoredMoment(timeCircuits.DestinationTime, 4);
+            var moment = GetStoredMoment(DestinationTime, 4);
             if (moment != null)
             {
                 // We found a moment.
@@ -140,7 +183,7 @@ namespace BackToTheFutureV
 
                 // Get the current Moment object for current situation.
                 moment = GetMomentForNow();
-                moment.CurrentDate = timeCircuits.DestinationTime;
+                moment.CurrentDate = DestinationTime;
 
                 // Add to stored Moments list.
                 momentsInTime.Add(moment);
@@ -169,17 +212,17 @@ namespace BackToTheFutureV
             RainPuddleEditor.Level = puddleLevel;
 
             // Delete all close-by Vehicles
-            var nearbyVehicles = World.GetNearbyVehicles(timeCircuits.Vehicle.Position, 10f).ToList();
+            var nearbyVehicles = World.GetNearbyVehicles(Vehicle.Position, 10f).ToList();
 
             nearbyVehicles
-                .Where(x => x != timeCircuits.Vehicle).ToList()
+                .Where(x => x != Vehicle).ToList()
                 .ForEach(x  => x.DeleteCompletely());
 
             // Far vehicles
-            var farVehicles = World.GetNearbyVehicles(timeCircuits.Vehicle.Position, 100f).ToList();
+            var farVehicles = World.GetNearbyVehicles(Vehicle.Position, 100f).ToList();
 
             farVehicles
-                .Where(x => x != timeCircuits.Vehicle).ToList()
+                .Where(x => x != Vehicle).ToList()
                 .ForEach(v =>
                 {
                     if(Utils.Random.NextDouble() < 0.2)
@@ -187,7 +230,7 @@ namespace BackToTheFutureV
                         // Change vehicle model
 
                         var vehicleInfo = new VehicleInfo(v);
-                        vehicleInfo.Model = Utils.GetRandomVehicleHash(v.Model, timeCircuits.Vehicle.Position);
+                        vehicleInfo.Model = Utils.GetRandomVehicleHash(v.Model, Vehicle.Position);
 
                         v.DeleteCompletely();
 
@@ -196,7 +239,6 @@ namespace BackToTheFutureV
                     else
                     {
                         // Just delete the vehicle
-
                         v.DeleteCompletely();
                     }
                 });
@@ -210,7 +252,7 @@ namespace BackToTheFutureV
             var nearbyVehicles = World.GetNearbyVehicles(Game.Player.Character.Position, 300f);
 
             var infos = nearbyVehicles
-                .Where(x => x != timeCircuits.Vehicle)
+                .Where(x => x != Vehicle)
                 .Select(x => new VehicleInfo(x));
 
             return new Moment(currentTime, currentWeather, RainPuddleEditor.Level, infos);
@@ -219,7 +261,7 @@ namespace BackToTheFutureV
         public void ApplyMoment(Moment moment)
         {
             World.GetNearbyVehicles(Game.Player.Character.Position, 100f)
-                .Where(x => x != timeCircuits.Vehicle)
+                .Where(x => x != Vehicle)
                 .ToList()
                 .ForEach(x => x.DeleteCompletely());
 
@@ -258,24 +300,6 @@ namespace BackToTheFutureV
 
             return foundMoment;
         }
-    }
 
-    public class Moment
-    {
-        public Moment(DateTime currentDate, Weather weather, float puddleLevel, IEnumerable<VehicleInfo> infos)
-        {
-            CurrentDate = currentDate;
-            Weather = weather;
-            PuddleLevel = puddleLevel;
-            Vehicles = infos.ToList();
-        }
-
-        public Weather Weather { get; set; }
-
-        public float PuddleLevel { get; set; }
-
-        public DateTime CurrentDate { get; set; }
-
-        public List<VehicleInfo> Vehicles { get; set; }
     }
 }

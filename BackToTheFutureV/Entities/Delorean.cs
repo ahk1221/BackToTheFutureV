@@ -1,15 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Drawing;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using System.Windows.Forms;
 using GTA;
 using GTA.Math;
-using GTA.Native;
-using NAudio;
-using NAudio.Wave;
+using BackToTheFutureV.Handlers;
+using System.Collections.Generic;
 
 namespace BackToTheFutureV.Entities
 {
@@ -18,15 +14,15 @@ namespace BackToTheFutureV.Entities
         public TimeCircuits Circuits { get; private set; }
         public Vehicle Vehicle { get; }
 
-        public int MPHSpeed
+        public float MPHSpeed
         {
             get
             {
-                return (int)(Vehicle.Speed / 0.27777 / 1.60934);
+                return (Vehicle.Speed / 0.27777f / 1.60934f);
             }
             set
             {
-                Vehicle.Speed = (float)(value * 0.27777 * 1.60934);
+                Vehicle.Speed = (value * 0.27777f * 1.60934f);
             }
         }
 
@@ -83,11 +79,10 @@ namespace BackToTheFutureV.Entities
         public DateTime DestinationTime { get; set; }
         public DateTime PreviousTime { get; set; }
 
-        public int MPHSpeed { get => delorean.MPHSpeed; set => delorean.MPHSpeed = value; } 
+        public float MPHSpeed { get => delorean.MPHSpeed; set => delorean.MPHSpeed = value; } 
         public Vehicle Vehicle => delorean.Vehicle;
 
-        public TimeTravelHandler TimeTravelHandler;
-        public SparksHandler SparksHandler;
+        public Dictionary<Type, Handler> RegisteredHandlers = new Dictionary<Type, Handler>();
 
         private bool isOn;
 
@@ -95,11 +90,9 @@ namespace BackToTheFutureV.Entities
         private DateTime nextReset;
         private Delorean delorean;
 
-
         private UIText destinationTimeText;
         private UIText currentTimeText;
         private UIText previousTimeText;
-
 
         public TimeCircuits(Delorean del)
         {
@@ -108,14 +101,22 @@ namespace BackToTheFutureV.Entities
             destinationTimeText = new UIText("Oct 21 1994 22:22 PM", new Point(1050, 360), 0.7f, Color.OrangeRed, GTA.Font.HouseScript, false);
             currentTimeText = new UIText("Oct 21 1991 22:11 PM", new Point(1050, 384), 0.7f, Color.OrangeRed, GTA.Font.HouseScript, false);
             previousTimeText = new UIText("Oct 21 1991 22:11 PM", new Point(1050, 408), 0.7f, Color.OrangeRed, GTA.Font.HouseScript, false);
-
-            TimeTravelHandler = new TimeTravelHandler(this);
-            SparksHandler = new SparksHandler(this);
         }
 
-        private void ResetEverything()
+        public T GetHandler<T>()
         {
-            SparksHandler?.ForceStop();
+            if(RegisteredHandlers.TryGetValue(typeof(T), out Handler handler))
+            {
+                return (T)Convert.ChangeType(handler, typeof(T));
+            }
+
+            return default(T);
+        }
+
+        private void RegisterHandlers()
+        {
+            RegisteredHandlers.Add(typeof(TimeTravelHandler), new TimeTravelHandler(this));
+            RegisteredHandlers.Add(typeof(SparksHandler), new SparksHandler(this));
         }
 
         private void Draw()
@@ -133,12 +134,11 @@ namespace BackToTheFutureV.Entities
         {
             if (!IsOn)
             {
-                ResetEverything();
+                RegisteredHandlers.Values.ToList().ForEach(x => x.Stop());
                 return;
             }
 
-            SparksHandler?.Process();
-            TimeTravelHandler?.Process();
+            RegisteredHandlers.Values.ToList().ForEach(x => x.Process());
 
             Draw();
 
@@ -171,6 +171,14 @@ namespace BackToTheFutureV.Entities
             if(e.KeyCode == Keys.Enter)
             {
                 IsOn = !IsOn;
+            }
+
+            if(e.KeyCode == Keys.O)
+            {
+                var timeTravelHandler = GetHandler<TimeTravelHandler>();
+
+                timeTravelHandler.ToggleModes();
+                Utils.DisplayHelpText("Time Travel Mode now set to " + timeTravelHandler.CurrentMode.ToString() + " Mode.");
             }
 
             if (!IsOn) return;

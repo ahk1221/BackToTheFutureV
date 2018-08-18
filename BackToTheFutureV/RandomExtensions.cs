@@ -12,4 +12,12 @@ namespace BackToTheFutureV
             return random.NextDouble() * (maxValue - minValue) + minValue;
         }
     }
+
+    public static class MathExtensions
+    {
+        public static float Lerp(float firstFloat, float secondFloat, float by)
+        {
+            return firstFloat * by + secondFloat * (1 - by);
+        }
+    }
 }

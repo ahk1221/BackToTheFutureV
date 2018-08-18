@@ -30,7 +30,7 @@ namespace BackToTheFutureV
             delorean?.Vehicle?.Delete();
         }
 
-        private void Main_KeyDown(object sender, KeyEventArgs e)
+        private unsafe void Main_KeyDown(object sender, KeyEventArgs e)
         {
             delorean?.KeyDown(e);
 
@@ -42,17 +42,9 @@ namespace BackToTheFutureV
 
             if(e.KeyCode == Keys.H)
             {
-                UI.ShowSubtitle(World.CurrentDate.ToString());
-            }
+                if (delorean.Vehicle == null) return;
 
-            if(e.KeyCode == Keys.J)
-            {
-                if (Game.Player.Character.CurrentVehicle == null) return;
-
-                if (ptfx == null)
-                    ptfx = new PtfxEntityPlayer("core", "ent_amb_barrel_fire", Game.Player.Character.CurrentVehicle, new Vector3(-0.7742f, 1.306987f, -0.255118f), Vector3.Zero, 1f, true, false);
-
-                ptfx.Play();
+                delorean.Vehicle.CreatePedOnSeat(VehicleSeat.Driver, PedHash.Business01AMM);
             }
         }
 
@@ -61,6 +53,47 @@ namespace BackToTheFutureV
             delorean?.Tick();
 
             ptfx?.Process();
+
+            if(delorean != null)
+            {
+                //UI.ShowSubtitle("Throttle: " + VehicleControl.GetThrottle(delorean.Vehicle) + " Steer: " + VehicleControl.GetSteeringAngle(delorean.Vehicle));
+
+                //Game.DisableControlThisFrame(2, GTA.Control.MoveUp);
+                //Game.DisableControlThisFrame(2, GTA.Control.MoveDown);
+                //Game.DisableControlThisFrame(2, GTA.Control.MoveLeft);
+                //Game.DisableControlThisFrame(2, GTA.Control.MoveRight);
+
+                //delorean.Vehicle.EngineRunning = true;
+
+                //float actualAngle = VehicleControl.GetLargestSteeringAngle(delorean.Vehicle);
+                //float limitRadians = VehicleControl.GetMaxSteeringAngle(delorean.Vehicle);
+                //float reduction = VehicleControl.CalculateReduction(delorean.Vehicle);
+
+                //bool handbrake;
+                //float throttle;
+                //bool brake;
+                //float steer;
+
+                //VehicleControl.GetControls(limitRadians, out handbrake, out throttle, out brake, out steer);
+
+                //UI.ShowSubtitle("Throttle: " + throttle + " Steer: " + steer);
+
+                //VehicleControl.SetThrottle(delorean.Vehicle, throttle);
+                //VehicleControl.SetBrake(delorean.Vehicle, brake);
+
+                //if (brake)
+                //    delorean.Vehicle.BrakeLightsOn = true;
+                //else
+                //    delorean.Vehicle.BrakeLightsOn = false;
+
+                //VehicleControl.SetSteeringAngle(delorean.Vehicle, steer);
+
+                //if(Math.Abs(throttle) >= 0.1f)
+                //{
+                //    if (delorean.Vehicle.Speed <= 1)
+                //        delorean.Vehicle.ApplyForce(delorean.Vehicle.ForwardVector * (0.1f / delorean.Vehicle.Speed) * Math.Sign(throttle));
+                //}
+            }
         }
     }
 }

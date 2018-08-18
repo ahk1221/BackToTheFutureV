@@ -55,4 +55,23 @@ namespace BackToTheFutureV
             Model = ped.Model;
         }
     }
+
+    public class Moment
+    {
+        public Moment(DateTime currentDate, Weather weather, float puddleLevel, IEnumerable<VehicleInfo> infos)
+        {
+            CurrentDate = currentDate;
+            Weather = weather;
+            PuddleLevel = puddleLevel;
+            Vehicles = infos.ToList();
+        }
+
+        public Weather Weather { get; set; }
+
+        public float PuddleLevel { get; set; }
+
+        public DateTime CurrentDate { get; set; }
+
+        public List<VehicleInfo> Vehicles { get; set; }
+    }
 }
