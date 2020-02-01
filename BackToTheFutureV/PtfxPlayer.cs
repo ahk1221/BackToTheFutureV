@@ -26,6 +26,8 @@ namespace BackToTheFutureV
 
         protected List<int> currentPlayingParticles = new List<int>();
 
+        protected Dictionary<string, float> evolutionParams = new Dictionary<string, float>();
+
         protected int nextRemove;
 
         public PtfxPlayer(string assetName, string effectName, Vector3 position, Vector3 rotation, float size = 1f, bool loop = false, bool doLoopHandling = false, int removeTime = 30)
@@ -65,9 +67,27 @@ namespace BackToTheFutureV
             }
         }
 
-        public void Play()
+        public void SetEvolutionParam(string key, float value)
         {
-            if (IsPlaying) return;
+            evolutionParams[key] = value;
+
+            foreach(var entry in evolutionParams)
+            {
+                currentPlayingParticles.ForEach(x => Function.Call(Hash.SET_PARTICLE_FX_LOOPED_EVOLUTION, x, entry.Key, entry.Value, 0));
+            }
+        }
+
+        public float GetEvolutionParam(string key)
+        {
+            if (evolutionParams.TryGetValue(key, out float value))
+                return value;
+
+            return -1f;
+        }
+
+        public void Play(bool force = false)
+        {
+            if (IsPlaying && !force) return;
 
             IsPlaying = true;
 
@@ -95,6 +115,13 @@ namespace BackToTheFutureV
             else
             {
                 Function.Call<int>(Hash.START_PARTICLE_FX_NON_LOOPED_AT_COORD, EffectName, Position.X, Position.Y, Position.Z, Rotation.X, Rotation.Y, Rotation.Z, Size, false, false, false);
+            }
+
+            if (!ShouldLoop) return;
+
+            foreach(var entry in evolutionParams)
+            {
+                currentPlayingParticles.ForEach(x => Function.Call(Hash.SET_PARTICLE_FX_LOOPED_EVOLUTION, x, entry.Key, entry.Value, 0));
             }
         }
 
@@ -130,6 +157,13 @@ namespace BackToTheFutureV
             else
             {
                 Function.Call<int>(Hash.START_PARTICLE_FX_NON_LOOPED_ON_ENTITY, EffectName, Entity.Handle, Position.X, Position.Y, Position.Z, Rotation.X, Rotation.Y, Rotation.Z, Size, false, false, false);
+            }
+
+            if (!ShouldLoop) return;
+
+            foreach (var entry in evolutionParams)
+            {
+                currentPlayingParticles.ForEach(x => Function.Call(Hash.SET_PARTICLE_FX_LOOPED_EVOLUTION, x, entry.Key, entry.Value, 0));
             }
         }
     }

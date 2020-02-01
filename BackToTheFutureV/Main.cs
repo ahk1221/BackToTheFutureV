@@ -8,54 +8,98 @@ using GTA;
 using GTA.Math;
 using GTA.Native;
 using BackToTheFutureV.Entities;
-using BackToTheFutureV.Memory;
 
 namespace BackToTheFutureV
 {
     public class Main : Script
     {
-        public Delorean delorean;
+        public static List<Delorean> deloreans = new List<Delorean>();
+        public static List<Disposable> disposableObjects = new List<Disposable>();
 
-        public PtfxEntityPlayer ptfx;
+        private static List<Delorean> deloreansToBeAdded = new List<Delorean>();
+
+        private int nextAnimate = 0;
 
         public Main()
         {
             Tick += Main_Tick;
             KeyDown += Main_KeyDown;
             Aborted += Main_Aborted;
+
+            var era = new Era();
+            era.EraStart = 1990;
+            era.EraEnd = 2000;
+            era.SpawnableVehicles = new EraVehicleInfo[1]
+            {
+                new EraVehicleInfo()
+                {
+                    Model = "ruiner",
+                    Probability = 60,
+                    Zone = new string[1] { "all" }
+                }
+            };
+
+            Utils.SerializeObject(era, "./scripts/testyboi.xml");
+        }
+
+        public static void AddDelorean(Delorean delorean)
+        {
+            deloreansToBeAdded.Add(delorean);
         }
 
         private void Main_Aborted(object sender, EventArgs e)
         {
-            delorean?.Vehicle?.Delete();
+            Game.FadeScreenIn(1000);
+
+            foreach (var delorean in deloreans)
+            {
+                delorean.Dispose();
+            }
+
+            foreach(var disposable in disposableObjects)
+            {
+                disposable.Dispose();
+            }
         }
 
         private unsafe void Main_KeyDown(object sender, KeyEventArgs e)
         {
-            delorean?.KeyDown(e);
+            deloreans.ForEach(x => x?.KeyDown(e));
+
+            FlyingHandling.KeyDown(e.KeyCode);
 
             if(e.KeyCode == Keys.L)
             {
-                delorean = new Delorean(Game.Player.Character.Position, Game.Player.Character.Heading);
+                Delorean delorean = new Delorean(Game.Player.Character.Position, Game.Player.Character.Heading);
                 Game.Player.Character.Task.WarpIntoVehicle(delorean.Vehicle, VehicleSeat.Driver);
+
+                AddDelorean(delorean);
             }
 
             if(e.KeyCode == Keys.H)
             {
-                if (delorean.Vehicle == null) return;
-
-                delorean.Vehicle.CreatePedOnSeat(VehicleSeat.Driver, PedHash.Business01AMM);
+                var copy = deloreans[0].CreateCopy(false);
+                AddDelorean(copy);
             }
         }
 
         private void Main_Tick(object sender, EventArgs e)
         {
-            delorean?.Tick();
-
-            ptfx?.Process();
-
-            if(delorean != null)
+            foreach (var delorean in deloreans)
             {
+                delorean.Tick();
+            }
+
+            if (deloreansToBeAdded.Count > 0)
+            {
+                deloreans.AddRange(deloreansToBeAdded);
+                deloreansToBeAdded.Clear();
+            }
+
+            TimeHandler.Tick();
+
+            //if(delorean != null)
+            //{
                 //UI.ShowSubtitle("Throttle: " + VehicleControl.GetThrottle(delorean.Vehicle) + " Steer: " + VehicleControl.GetSteeringAngle(delorean.Vehicle));
 
                 //Game.DisableControlThisFrame(2, GTA.Control.MoveUp);
@@ -93,7 +137,7 @@ namespace BackToTheFutureV
                 //    if (delorean.Vehicle.Speed <= 1)
                 //        delorean.Vehicle.ApplyForce(delorean.Vehicle.ForwardVector * (0.1f / delorean.Vehicle.Speed) * Math.Sign(throttle));
                 //}
-            }
+            //}
         }
     }
 }

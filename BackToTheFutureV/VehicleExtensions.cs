@@ -15,12 +15,23 @@ namespace BackToTheFutureV
             {
                 vehicle?.Driver?.Delete();
                 vehicle?.Occupants?.ToList().ForEach(x => x?.Delete());
-                vehicle?.Delete();
             }
             catch(Exception e)
             {
-
             }
+
+            vehicle?.Delete();
+        }
+
+        public static bool IsTimeMachine(this Vehicle vehicle)
+        {
+            foreach(var delorean in Main.deloreans)
+            {
+                if (vehicle == delorean.Vehicle)
+                    return true;
+            }
+
+            return false;
         }
     }
 }

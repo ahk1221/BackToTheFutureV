@@ -52,8 +52,15 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="AudioPlayer.cs" />
+    <Compile Include="Disposable.cs" />
     <Compile Include="Entities\Delorean.cs" />
+    <Compile Include="FlyingHandling.cs" />
+    <Compile Include="RemoteDelorean.cs" />
+    <Compile Include="Handlers\FireTrailsHandler.cs" />
+    <Compile Include="Handlers\FreezeHandler.cs" />
+    <Compile Include="Handlers\FuelHandler.cs" />
     <Compile Include="Handlers\Handler.cs" />
+    <Compile Include="Handlers\ReentryHandler.cs" />
     <Compile Include="Infos.cs" />
     <Compile Include="Main.cs" />
     <Compile Include="Memory\Memory.cs" />
@@ -62,9 +69,12 @@
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="PtfxPlayer.cs" />
     <Compile Include="RandomExtensions.cs" />
-    <Compile Include="RCHandler.cs" />
+    <Compile Include="Handlers\RCHandler.cs" />
     <Compile Include="Handlers\SparksHandler.cs" />
     <Compile Include="Handlers\TimeTravelHandler.cs" />
+    <Compile Include="RemoteDeloreanHandler.cs" />
+    <Compile Include="TimeHandler.cs" />
+    <Compile Include="TrafficInjector.cs" />
     <Compile Include="Utils.cs" />
     <Compile Include="VehicleExtensions.cs" />
   </ItemGroup>

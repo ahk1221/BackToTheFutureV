@@ -4,9 +4,12 @@ using GTA.Native;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Xml;
+using System.Xml.Serialization;
 
 namespace BackToTheFutureV
 {
@@ -151,29 +154,75 @@ namespace BackToTheFutureV
             return (max - min).Length() / 2;
         }
 
-        public static Vehicle SpawnFromVehicleInfo(VehicleInfo vehicleInfo, bool markAsNoLongerNeeded = true)
+        public static Vehicle ReplaceVehicle(Vehicle vehicle, Model newHash, bool markAsNoLongerNeeded = true)
         {
-            var vehicle = World.CreateVehicle(vehicleInfo.Model, vehicleInfo.Position);
+            // Get the info for the original vehicle
+            VehicleInfo info = new VehicleInfo(vehicle);
+            info.Model = newHash;
+
+            // Get the ped out of the vehicle
+            Ped driver = vehicle.Driver;
+            driver?.Task.WarpOutOfVehicle(vehicle);
+
+            // Delete original vehicle
+            vehicle.DeleteCompletely();
+
+            // Spawn the new vehicle
+            Vehicle spawnedVehicle = SpawnFromVehicleInfo(info);
+            
+            // This driving style means: (https://gtaforums.com/topic/822314-guide-driving-styles/)
+            // 1 = Stop Before Vehicles
+            // 2 = Stop Before Peds
+            // 8 = Avoid Empty Vehicles
+            // 16 = Avoid Peds
+            // 32 = Avoid Objects
+            // 128 = Stop at Traffic Lights
+            // 256 = Use blinkers
+            int drivingStyle = 1 + 2 + 8 + 16 + 32 + 128 + 256;
+
+            // Set the ped inside the vehicle
+            driver?.SetIntoVehicle(vehicle, VehicleSeat.Driver);
+            driver?.Task.CruiseWithVehicle(spawnedVehicle, 20, drivingStyle);
+
+            // Mark the vehicle as no longer needed to save memory
+            if(markAsNoLongerNeeded)
+            {
+                spawnedVehicle.MarkAsNoLongerNeeded();
+                spawnedVehicle.Model.MarkAsNoLongerNeeded();
+            }
+
+            // Return the spawned vehicle
+            return spawnedVehicle;
+        }
+
+        public static Vehicle SpawnFromVehicleInfo(VehicleInfo vehicleInfo)
+        {
+            Vehicle vehicle = World.CreateVehicle(vehicleInfo.Model.Hash, vehicleInfo.Position);
             vehicle.Rotation = vehicleInfo.Rotation;
             vehicle.Velocity = vehicleInfo.Velocity;
             vehicle.Speed = vehicleInfo.Speed;
             vehicle.PrimaryColor = vehicleInfo.PrimaryColor;
             vehicle.SecondaryColor = vehicleInfo.SecondaryColor;
             vehicle.EngineRunning = vehicleInfo.EngineRunning;
+            vehicle.IsPersistent = false;
+            vehicle.MarkAsNoLongerNeeded(); 
+            vehicle.Model.MarkAsNoLongerNeeded();
+
+            Ped driver = null;
 
             if (!vehicleInfo.IsStationary)
-                vehicle.CreatePedOnSeat(VehicleSeat.Driver, vehicleInfo.DriverModel);
-
-            var driver = vehicle.Driver;
-            if (driver != null)
             {
-                driver.Task.CruiseWithVehicle(vehicle, 11, (int)DrivingStyle.Normal);
+                driver = Function.Call<Ped>(Hash.CREATE_PED_INSIDE_VEHICLE, vehicle, vehicleInfo.Driver.PedType,
+                    vehicleInfo.Driver.Model.Hash, (int)VehicleSeat.Driver, false, true);
+                driver.MarkAsNoLongerNeeded();
+                driver.Model.MarkAsNoLongerNeeded();
             }
 
-            vehicle.IsPersistent = false;
-
-            if(markAsNoLongerNeeded)
-                vehicle.MarkAsNoLongerNeeded();
+            if (driver != null)
+            {
+                int drivingStyle = 1 + 2 + 8 + 16 + 32 + 128 + 256;
+                driver.Task.CruiseWithVehicle(vehicle, 20, drivingStyle);
+            }
 
             return vehicle;
         }
@@ -201,6 +250,119 @@ namespace BackToTheFutureV
             Function.Call(Hash._SET_TEXT_COMPONENT_FORMAT, "STRING");
             Function.Call(Hash._ADD_TEXT_COMPONENT_STRING, text);
             Function.Call(Hash._0x238FFE5C7B0498A6, 0, 0, 1, -1);
+        }
+
+        public static void HideVehicle(Vehicle vehicle, bool hide)
+        {
+            vehicle.IsVisible = !hide;
+            vehicle.HasCollision = !hide;
+            vehicle.FreezePosition = hide;
+            vehicle.EngineRunning = !hide;
+
+            if (vehicle.Driver != null)
+                vehicle.Driver.IsVisible = !hide;
+        }
+
+        public static float Clamp(float value, float min, float max)
+        {
+            if (value > max)
+                return max;
+            else if (value < min)
+                return min;
+
+            return value;
+        }
+
+        public static float CalculateVolume(Entity ent)
+        {
+            var distance = Vector3.Distance(Game.Player.Character.Position, ent.Position);
+
+            var volume = 25f / distance;
+
+            return Clamp(volume, 0, 1.5f);
+        }
+
+        public static void SetDecorator<T>(Entity entity, string propertyName, T value)
+        {
+            Type type = typeof(T);
+
+            if (type == typeof(int))
+                Function.Call(Hash.DECOR_SET_INT, entity.Handle, propertyName, (int)Convert.ChangeType(value, typeof(int)));
+            else if (type == typeof(float))
+                Function.Call(Hash._DECOR_SET_FLOAT, entity.Handle, propertyName, (float)Convert.ChangeType(value, typeof(float)));
+            else if (type == typeof(bool))
+                Function.Call(Hash.DECOR_SET_BOOL, entity.Handle, propertyName, (bool)Convert.ChangeType(value, typeof(bool)));
+            else
+                throw new Exception("SetDecorator provided with invalid type: " + type);
+        }
+
+        public static T GetDecorator<T>(Entity entity, string propertyName)
+        {
+            Type type = typeof(T);
+
+            if (type == typeof(int))
+                return (T)Convert.ChangeType(Function.Call<int>(Hash.DECOR_GET_INT, entity.Handle, propertyName), type);
+            else if (type == typeof(float))
+                return (T)Convert.ChangeType(Function.Call<float>(Hash._DECOR_GET_FLOAT, entity.Handle, propertyName), type);
+            else if (type == typeof(bool))
+                return (T)Convert.ChangeType(Function.Call<bool>(Hash.DECOR_GET_BOOL, entity.Handle, propertyName), type);
+            else
+                throw new Exception("GetDecorator provided with invalid type: " + type);
+
+        }
+
+        // Thanks to sollaholla for this
+        public static float CalculateStereo(Entity ent)
+        {
+            Vector3 lDir = Quaternion.Euler(GameplayCamera.Rotation) * Vector3.RelativeRight;
+            Vector3 rDir = -lDir;
+            Vector3 relativeDir = ent.Position - GameplayCamera.Position;
+            relativeDir.Normalize();
+
+            float lf = Vector3.Angle(lDir, relativeDir);
+            float volumeL = lf / 180f;
+            float rf = Vector3.Angle(rDir, relativeDir);
+            float volumeR = rf / 180f;
+
+            return volumeR - volumeL;
+        }
+
+        public static bool SerializeObject<T>(T obj, string path)
+        {
+            try
+            {
+                XmlSerializer serializer = new XmlSerializer(typeof(T));
+                TextWriter stream = new StreamWriter(path);
+
+                serializer.Serialize(stream, obj);
+                stream.Close();
+
+                return true;
+            }
+            catch(Exception e)
+            {
+                return false;
+            }
+        }
+
+        public static T DeserializeObject<T>(string path)
+        {
+            try
+            {
+                XmlSerializer serializer = new XmlSerializer(typeof(T));
+                FileStream fs = new FileStream(path, FileMode.Open);
+
+                return (T)serializer.Deserialize(fs);
+            }
+            catch(Exception e)
+            {
+                return default(T);
+            }
+        }
+
+        public static float Lerp(float firstFloat, float secondFloat, float by)
+        {
+            return firstFloat + (secondFloat - firstFloat) * by;
         }
     }
 

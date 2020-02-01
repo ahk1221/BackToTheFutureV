@@ -8,6 +8,7 @@ using GTA.Math;
 using GTA.Native;
 using BackToTheFutureV.Entities;
 using System.Drawing;
+using System.Windows.Forms;
 
 namespace BackToTheFutureV.Handlers
 {
@@ -17,6 +18,8 @@ namespace BackToTheFutureV.Handlers
         private AudioPlayer diodesGlowingSound;
 
         private bool hasPlayedDiodeSound;
+        private int timeTravelAt;
+        private int startSparksAt;
 
         private readonly string[] wheelNames = new string[4]
         {
@@ -26,23 +29,26 @@ namespace BackToTheFutureV.Handlers
             "wheel_rf"
         };
 
-        private PtfxEntityPlayer sparksPtfx;
+        private List<PtfxEntityPlayer> sparksPtfxs = new List<PtfxEntityPlayer>();
         private List<PtfxEntityPlayer> wheelPtfxes = new List<PtfxEntityPlayer>();
 
         public SparksHandler(TimeCircuits circuits) : base(circuits)
         {
-            sparksAudio = new AudioPlayer("./scripts/BackToTheFutureV/sounds/sparks.wav", true, 2);
-            diodesGlowingSound = new AudioPlayer("./scripts/BackToTheFutureV/sounds/diodes_glowing.wav", false, 1);
+            sparksAudio = new AudioPlayer($"sparks_{LowerCaseDeloreanType}.wav", false, 0.7f);
+            diodesGlowingSound = new AudioPlayer("diodes_glowing.wav", false, 1);
 
-            sparksPtfx = new PtfxEntityPlayer("des_bigjobdrill", "ent_ray_big_drill_sparks", Vehicle, new Vector3(0, 3f, 0), Vector3.Zero, 3.5f, true, true, 5);
-            foreach(var wheelName in wheelNames)
+            sparksPtfxs.Add(new PtfxEntityPlayer("des_bigjobdrill", "ent_ray_big_drill_sparks", Vehicle, new Vector3(0, 3f, 0), Vector3.Zero, 3.5f, true, true, 15));
+            sparksPtfxs.Add(new PtfxEntityPlayer("scr_paletoscore", "scr_paleto_box_sparks", Vehicle, new Vector3(0, 3f, 0), new Vector3(0, 0, 180), 1.5f, true, true, 300));
+            sparksPtfxs.Add(new PtfxEntityPlayer("scr_reconstructionaccident", "sp_sparking_generator", Vehicle, new Vector3(0, 3f, 0), Vector3.Zero, 1.5f, true, true, 400));
+
+            foreach (var wheelName in wheelNames)
             {
                 var worldPos = Vehicle.GetBoneCoord(wheelName);
                 var offset = Vehicle.GetOffsetFromWorldCoords(worldPos);
 
-                offset = new Vector3(offset.X, offset.Y - 0.5f, offset.Z - 0.15f);
+                offset = new Vector3(offset.X, offset.Y - 0.3f, offset.Z - 0.15f);
 
-                var ptfx = new PtfxEntityPlayer("scr_carsteal4", "scr_carsteal5_car_muzzle_flash", Vehicle, offset, new Vector3(0f, 0f, -90f), 1.5f, true, true, 15);
+                var ptfx = new PtfxEntityPlayer("scr_carsteal4", "scr_carsteal5_car_muzzle_flash", Vehicle, offset, new Vector3(0f, 0f, -90f), 1f, true, true, 15);
 
                 wheelPtfxes.Add(ptfx);
             }
@@ -50,66 +56,75 @@ namespace BackToTheFutureV.Handlers
 
         public override void Process()
         {
-            if (MPHSpeed < 80)
+            if (MPHSpeed < 82)
             {
-                sparksAudio.Stop();
-
-                sparksPtfx.Stop();
-                diodesGlowingSound.Stop();
-                wheelPtfxes.ForEach(x => x.Stop());
+                Stop();
             }
 
-            if(MPHSpeed >= 82)
+            if (MPHSpeed >= 82)
             {
-                if(!hasPlayedDiodeSound)
+                if (!hasPlayedDiodeSound)
                 {
                     diodesGlowingSound.Play();
                     hasPlayedDiodeSound = true;
                 }
             }
 
-            if (MPHSpeed >= 84 && MPHSpeed < 88)
-            {
-                if (!sparksAudio.IsPlaying)
-                    sparksAudio.Play();
-
-                if (!sparksPtfx.IsPlaying)
-                    sparksPtfx.Play();
-
-                sparksPtfx.Process();
-                wheelPtfxes.ForEach(x => x.Process());
-
-                for (int i = 0; i < wheelPtfxes.Count; i++)
-                {
-                    wheelPtfxes[i].Play();
-                }
-
-                var pos = Vehicle.Position + new Vector3(0, 3f, 0);
-
-                World.DrawLightWithRange(pos, Color.SkyBlue, 1f, 1f);
-            }
-
             if (MPHSpeed >= 88)
             {
-                sparksAudio.Stop();
-                sparksPtfx.Stop();
-                diodesGlowingSound.Stop();
-                wheelPtfxes.ForEach(x => x.Stop());
+                if (timeTravelAt == -1)
+                    timeTravelAt = Game.GameTime + 6000;
 
-                hasPlayedDiodeSound = false;
+                if (!sparksAudio.IsPlaying)
+                {
+                    sparksAudio.Play();
+                    startSparksAt = Game.GameTime + 1000;
+                }
 
-                TimeCircuits?.GetHandler<TimeTravelHandler>()?.StartTimeTravelling();
+                if (Game.GameTime > startSparksAt)
+                {
+                    sparksPtfxs.ForEach(x =>
+                    {
+                        x.Play();
+                        x.Process();
+                    });
+                    wheelPtfxes.ForEach(x =>
+                    {
+                        x.Play();
+                        x.Process();
+                    });
+
+                    Vehicle.SetMod(VehicleMod.Spoilers, 0, true);
+
+                    if (Game.GameTime > timeTravelAt)
+                        SparksEnded();
+                }
             }
         }
 
         public override void Stop()
         {
-            sparksPtfx.Stop();
             sparksAudio.Stop();
             diodesGlowingSound.Stop();
             wheelPtfxes.ForEach(x => x.Stop());
+            sparksPtfxs.ForEach(x => x.Stop());
+            Vehicle.SetMod(VehicleMod.Spoilers, 1, true);
 
             hasPlayedDiodeSound = false;
+            timeTravelAt = -1;
+        }
+
+        public override void KeyPress(Keys key)
+        {
+        }
+
+        private void SparksEnded()
+        {
+            Stop();
+
+            Function.Call(Hash.DETACH_VEHICLE_FROM_ANY_TOW_TRUCK, Vehicle.Handle);
+
+            TimeCircuits?.GetHandler<TimeTravelHandler>()?.StartTimeTravelling();
         }
     }
 }
